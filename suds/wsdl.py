@@ -65,10 +65,27 @@ class WObject(Object):
         pmd.excludes = ["root"]
         pmd.wrappers = dict(qname=repr)
         self.__metadata__.__print__ = pmd
+        self.__resolved = False
 
     def resolve(self, definitions):
         """
         Resolve named references to other WSDL objects.
+
+        Can be safely called multiple times.
+
+        @param definitions: A definitions object.
+        @type definitions: L{Definitions}
+
+        """
+        if not self.__resolved:
+            self.do_resolve(definitions)
+            self.__resolved = True
+
+    def do_resolve(self, definitions):
+        """
+        Internal worker resolving named references to other WSDL objects.
+
+        May only be called once per instance.
 
         @param definitions: A definitions object.
         @type definitions: L{Definitions}
@@ -134,7 +151,7 @@ class Definitions(WObject):
 
     Tag = "definitions"
 
-    def __init__(self, url, options):
+    def __init__(self, url, options, imported_definitions=None):
         """
         @param url: A URL to the WSDL.
         @type url: str
@@ -165,7 +182,10 @@ class Definitions(WObject):
         pmd.excludes.append("children")
         pmd.excludes.append("wsdl")
         pmd.wrappers["schema"] = repr
-        self.open_imports()
+        if imported_definitions is None:
+            imported_definitions = {}
+        imported_definitions[url] = self
+        self.open_imports(imported_definitions)
         self.resolve()
         self.build_schema()
         self.set_wrapped()
@@ -207,10 +227,10 @@ class Definitions(WObject):
                 self.services.append(child)
                 continue
 
-    def open_imports(self):
+    def open_imports(self, imported_definitions):
         """Import the I{imported} WSDLs."""
         for imp in self.imports:
-            imp.load(self)
+            imp.load(self, imported_definitions)
 
     def resolve(self):
         """Tell all children to resolve themselves."""
@@ -219,17 +239,22 @@ class Definitions(WObject):
 
     def build_schema(self):
         """Process L{Types} objects and create the schema collection."""
+        loaded_schemata = {}
         container = SchemaCollection(self)
-        for t in [t for t in self.types if t.local()]:
+        for t in (t for t in self.types if t.local()):
             for root in t.contents():
-                schema = Schema(root, self.url, self.options, container)
+                schema = Schema(root, self.url, self.options, loaded_schemata, container)
                 container.add(schema)
-        if not len(container):
+        if not container:
             root = Element.buildPath(self.root, "types/schema")
-            schema = Schema(root, self.url, self.options, container)
+            schema = Schema(root, self.url, self.options, loaded_schemata, container)
             container.add(schema)
-        self.schema = container.load(self.options)
-        for s in [t.schema() for t in self.types if t.imported()]:
+        self.schema = container.load(self.options, loaded_schemata)
+        #TODO: Recheck this XSD schema merging. XSD schema imports are not
+        # supposed to be transitive. They only allow the importing schema to
+        # reference entities from the imported schema, but do not include them
+        # as their own content.
+        for s in (t.schema() for t in self.types if t.imported()):
             self.schema.merge(s)
         return self.schema
 
@@ -243,7 +268,7 @@ class Definitions(WObject):
             binding = p.binding
             ptype = p.binding.type
             operations = p.binding.type.operations.values()
-            for name in [op.name for op in operations]:
+            for name in (op.name for op in operations):
                 m = Facade("Method")
                 m.name = name
                 m.location = p.location
@@ -254,7 +279,6 @@ class Definitions(WObject):
                 m.binding.input = bindings.get(key)
                 key = "/".join((op.soap.style, op.soap.output.body.use))
                 m.binding.output = bindings.get(key)
-                op = ptype.operation(name)
                 p.methods[name] = m
 
     def set_wrapped(self):
@@ -319,14 +343,15 @@ class Import(WObject):
         pmd = self.__metadata__.__print__
         pmd.wrappers["imported"] = repr
 
-    def load(self, definitions):
+    def load(self, definitions, imported_definitions):
         """Load the object by opening the URL."""
         url = self.location
         log.debug("importing (%s)", url)
         if "://" not in url:
             url = urljoin(definitions.url, url)
-        options = definitions.options
-        d = Definitions(url, options)
+        d = imported_definitions.get(url)
+        if not d:
+            d = Definitions(url, definitions.options, imported_definitions)
         if d.root.match(Definitions.Tag, wsdlns):
             self.import_definitions(definitions, d)
             return
@@ -346,7 +371,7 @@ class Import(WObject):
 
     def import_schema(self, definitions, d):
         """Import schema as <types/> content."""
-        if not len(definitions.types):
+        if not definitions.types:
             root = Element("types", ns=wsdlns)
             definitions.root.insert(root)
             types = Types(root, definitions)
@@ -495,7 +520,7 @@ class PortType(NamedObject):
             op.faults = faults
             self.operations[op.name] = op
 
-    def resolve(self, definitions):
+    def do_resolve(self, definitions):
         """
         Resolve named references to other WSDL objects.
 
@@ -668,7 +693,7 @@ class Binding(NamedObject):
         if part is not None:
             header.part = part
 
-    def resolve(self, definitions):
+    def do_resolve(self, definitions):
         """
         Resolve named references to other WSDL objects. This includes
         cross-linking information (from) the portType (to) the I{SOAP} protocol
@@ -678,13 +703,13 @@ class Binding(NamedObject):
         @type definitions: L{Definitions}
 
         """
-        self.resolveport(definitions)
+        self.__resolveport(definitions)
         for op in self.operations.values():
-            self.resolvesoapbody(definitions, op)
-            self.resolveheaders(definitions, op)
-            self.resolvefaults(definitions, op)
+            self.__resolvesoapbody(definitions, op)
+            self.__resolveheaders(definitions, op)
+            self.__resolvefaults(definitions, op)
 
-    def resolveport(self, definitions):
+    def __resolveport(self, definitions):
         """
         Resolve port_type reference.
 
@@ -696,9 +721,17 @@ class Binding(NamedObject):
         port_type = definitions.port_types.get(ref)
         if port_type is None:
             raise Exception("portType '%s', not-found" % (self.type,))
+        # Later on we will require access to the message data referenced by
+        # this port_type instance, and in order for those data references to be
+        # available, port_type first needs to dereference its message
+        # identification string. The only scenario where the port_type might
+        # possibly not have already resolved its references, and where this
+        # explicit resolve() call is required, is if we are dealing with a
+        # recursive WSDL import chain.
+        port_type.resolve(definitions)
         self.type = port_type
 
-    def resolvesoapbody(self, definitions, op):
+    def __resolvesoapbody(self, definitions, op):
         """
         Resolve SOAP body I{message} parts by cross-referencing with operation
         defined in port type.
@@ -715,7 +748,7 @@ class Binding(NamedObject):
                 op.name,))
         soap = op.soap
         parts = soap.input.body.parts
-        if len(parts):
+        if parts:
             pts = []
             for p in ptop.input.parts:
                 if p.name in parts:
@@ -724,7 +757,7 @@ class Binding(NamedObject):
         else:
             soap.input.body.parts = ptop.input.parts
         parts = soap.output.body.parts
-        if len(parts):
+        if parts:
             pts = []
             for p in ptop.output.parts:
                 if p.name in parts:
@@ -733,7 +766,7 @@ class Binding(NamedObject):
         else:
             soap.output.body.parts = ptop.output.parts
 
-    def resolveheaders(self, definitions, op):
+    def __resolveheaders(self, definitions, op):
         """
         Resolve SOAP header I{message} references.
 
@@ -760,7 +793,7 @@ class Binding(NamedObject):
                 raise Exception("message '%s' has not part named '%s'" % (
                     ref, pn))
 
-    def resolvefaults(self, definitions, op):
+    def __resolvefaults(self, definitions, op):
         """
         Resolve SOAP fault I{message} references by cross-referencing with
         operations defined in the port type.
@@ -903,7 +936,7 @@ class Service(NamedObject):
                 if names is None or m.name in names:
                     m.location = url
 
-    def resolve(self, definitions):
+    def do_resolve(self, definitions):
         """
         Resolve named references to other WSDL objects. Ports without SOAP
         bindings are discarded.
@@ -922,6 +955,13 @@ class Service(NamedObject):
                 log.debug("binding '%s' - not a SOAP binding, discarded",
                     binding.name)
                 continue
+            # After we have been resolved, our caller will expect that the
+            # binding we are referencing has been fully constructed, i.e.
+            # resolved, as well. The only scenario where the operations binding
+            # might possibly not have already resolved its references, and
+            # where this explicit resolve() call is required, is if we are
+            # dealing with a recursive WSDL import chain.
+            binding.resolve(definitions)
             p.binding = binding
             filtered.append(p)
         self.ports = filtered
@@ -940,12 +980,12 @@ class Factory:
     """
 
     tags = {
-        "import" : Import,
-        "types" : Types,
-        "message" : Message,
-        "portType" : PortType,
-        "binding" : Binding,
-        "service" : Service}
+        "import": Import,
+        "types": Types,
+        "message": Message,
+        "portType": PortType,
+        "binding": Binding,
+        "service": Service}
 
     @classmethod
     def create(cls, root, definitions):

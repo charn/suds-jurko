@@ -332,8 +332,8 @@ class Element(UnicodeMixin):
         Append the specified child based on whether it is an element or an
         attribute.
 
-        @param objects: A (single|collection) of attribute(s) or element(s)
-            to be added as children.
+        @param objects: A (single|collection) of attribute(s) or element(s) to
+            be added as children.
         @type objects: (L{Element}|L{Attribute})
         @return: self
         @rtype: L{Element}
@@ -783,8 +783,8 @@ class Element(UnicodeMixin):
         """
         if ns is None:
             return
-        if not isinstance(ns, (tuple, list)):
-            raise Exception("namespace must be tuple")
+        if not isinstance(ns, (list, tuple)):
+            raise Exception("namespace must be a list or a tuple")
         if ns[0] is None:
             self.expns = ns[1]
         else:
@@ -853,11 +853,11 @@ class Element(UnicodeMixin):
 
         """
         s = []
-        myns = (None, self.expns)
+        myns = None, self.expns
         if self.parent is None:
             pns = Namespace.default
         else:
-            pns = (None, self.parent.expns)
+            pns = None, self.parent.expns
         if myns[1] != pns[1]:
             if self.expns is not None:
                 s.append(' xmlns="%s"' % (self.expns,))

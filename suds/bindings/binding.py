@@ -474,8 +474,7 @@ class Binding(object):
 
 class PartElement(SchemaElement):
     """
-    A part used to represent a message part when the part references a schema
-    type and thus assumes to be an element.
+    Message part referencing an XSD type and thus acting like an XSD element.
 
     @ivar resolved: The part type.
     @type resolved: L{suds.xsd.sxbase.SchemaObject}
@@ -497,7 +496,7 @@ class PartElement(SchemaElement):
         self.form_qualified = False
 
     def implany(self):
-        return self
+        pass
 
     def optional(self):
         return True

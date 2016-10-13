@@ -98,6 +98,7 @@ def parametrize_single_element_input_test(param_names, param_values):
             expanded_param_values.append(param)
     return (param_names, expanded_param_values), {}
 
+
 @pytest.mark.indirect_parametrize(parametrize_single_element_input_test,
     ("xsd", "external_element_name", "args", "request_body"), (
     # Bare non-optional element.
@@ -440,7 +441,7 @@ def test_element_references_to_different_namespaces():
         <xsd:complexType>
           <xsd:sequence>
             <xsd:element name="local" type="xsd:string"/>
-            <xsd:element ref="local_referenced"/>
+            <xsd:element ref="tns:local_referenced"/>
             <xsd:element ref="second:external"/>
           </xsd:sequence>
         </xsd:complexType>
@@ -794,6 +795,57 @@ def test_optional_parameter_handling():
 </Envelope>""" % (xsd_target_namespace,))
 
 
+def test_optional_parameter_with_empty_object_value():
+    """Missing optional parameters should not get passed at all."""
+    xsd_target_namespace = "I'm a cute little swamp gorilla monster!"
+    wsdl = testutils.wsdl("""\
+      <xsd:element name="Wrapper">
+        <xsd:complexType>
+          <xsd:sequence>
+            <xsd:element name="value" type="xsd:anyType" minOccurs="0"/>
+          </xsd:sequence>
+        </xsd:complexType>
+      </xsd:element>""", input="Wrapper", operation_name="f",
+        xsd_target_namespace=xsd_target_namespace)
+    client = testutils.client_from_wsdl(wsdl, nosend=True, prettyxml=True)
+    service = client.service
+
+    # Base line: nothing passed --> nothing marshalled.
+    _assert_request_content(service.f(), """\
+<?xml version="1.0" encoding="UTF-8"?>
+<Envelope xmlns="http://schemas.xmlsoap.org/soap/envelope/">
+  <Header/>
+  <Body>
+    <Wrapper xmlns="%s"/>
+  </Body>
+</Envelope>""" % (xsd_target_namespace,))
+
+    # Passing a empty object as an empty dictionary.
+    _assert_request_content(service.f({}), """\
+<?xml version="1.0" encoding="UTF-8"?>
+<Envelope xmlns="http://schemas.xmlsoap.org/soap/envelope/">
+  <Header/>
+  <Body>
+    <Wrapper xmlns="%s">
+        <value/>
+    </Wrapper>
+  </Body>
+</Envelope>""" % (xsd_target_namespace,))
+
+    # Passing a empty explicitly constructed `suds.sudsobject.Object`.
+    empty_object = client.factory.create("my_xsd:Wrapper")
+    _assert_request_content(service.f(empty_object), """\
+<?xml version="1.0" encoding="UTF-8"?>
+<Envelope xmlns="http://schemas.xmlsoap.org/soap/envelope/">
+  <Header/>
+  <Body>
+    <Wrapper xmlns="%s">
+        <value/>
+    </Wrapper>
+  </Body>
+</Envelope>""" % (xsd_target_namespace,))
+
+
 def test_SOAP_headers():
     """Rudimentary 'soapheaders' option usage test."""
     wsdl = suds.byte_str("""\
@@ -1028,6 +1080,12 @@ def test_wrapped_parameter(monkeypatch):
   </Body>
 </Envelope>""" % data)
 
+
+###############################################################################
+#
+# Test utilities.
+#
+###############################################################################
 
 def _assert_request_content(request, expected_xml):
     CompareSAX.data2data(request.envelope, expected_xml)

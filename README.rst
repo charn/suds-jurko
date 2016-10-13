@@ -101,27 +101,32 @@ version 0.7 (development)
     during the setup procedure.
   * Tested in the following environments:
 
-    * Python 2.4.3/x86 on Windows 7/SP1/x64.
-    * Python 2.4.4/x86 on Windows 7/SP1/x64.
-    * Python 2.5.4/x86 on Windows 7/SP1/x64.
-    * Python 2.5.4/x64 on Windows 7/SP1/x64.
-    * Python 2.6.6/x86 on Windows 7/SP1/x64.
-    * Python 2.6.6/x64 on Windows 7/SP1/x64.
-    * Python 2.7.6/x86 on Windows 7/SP1/x64.
-    * Python 2.7.6/x64 on Windows 7/SP1/x64.
-    * Python 2.7.7/x86 on Windows 7/SP1/x64.
-    * Python 2.7.7/x64 on Windows 7/SP1/x64.
-    * Python 3.1.3/x64 on Windows 7/SP1/x64.
-    * Python 3.2.5/x86 on Windows 7/SP1/x64.
-    * Python 3.2.5/x64 on Windows 7/SP1/x64.
-    * Python 3.3.3/x86 on Windows 7/SP1/x64.
-    * Python 3.3.3/x64 on Windows 7/SP1/x64.
-    * Python 3.3.5/x86 on Windows 7/SP1/x64.
-    * Python 3.3.5/x64 on Windows 7/SP1/x64.
-    * Python 3.4.0/x86 on Windows 7/SP1/x64.
-    * Python 3.4.0/x64 on Windows 7/SP1/x64.
-    * Python 3.4.1/x86 on Windows 7/SP1/x64.
-    * Python 3.4.1/x64 on Windows 7/SP1/x64.
+    * Python 2.4.3/x86 on Windows 8.1/x64.
+    * Python 2.4.4/x86 on Windows 8.1/x64.
+    * Python 2.5.4/x86 on Windows 8.1/x64.
+    * Python 2.5.4/x64 on Windows 8.1/x64.
+    * Python 2.6.6/x86 on Windows 8.1/x64.
+    * Python 2.6.6/x64 on Windows 8.1/x64.
+    * Python 2.7.6/x86 on Windows 8.1/x64.
+    * Python 2.7.6/x64 on Windows 8.1/x64.
+    * Python 2.7.7/x86 on Windows 8.1/x64.
+    * Python 2.7.7/x64 on Windows 8.1/x64.
+    * Python 2.7.8/x86 on Windows 8.1/x64.
+    * Python 2.7.8/x64 on Windows 8.1/x64.
+    * Python 3.1.3/x86 on Windows 8.1/x64.
+    * Python 3.1.3/x64 on Windows 8.1/x64.
+    * Python 3.2.5/x86 on Windows 8.1/x64.
+    * Python 3.2.5/x64 on Windows 8.1/x64.
+    * Python 3.3.3/x86 on Windows 8.1/x64.
+    * Python 3.3.3/x64 on Windows 8.1/x64.
+    * Python 3.3.5/x86 on Windows 8.1/x64.
+    * Python 3.3.5/x64 on Windows 8.1/x64.
+    * Python 3.4.0/x86 on Windows 8.1/x64.
+    * Python 3.4.0/x64 on Windows 8.1/x64.
+    * Python 3.4.1/x86 on Windows 8.1/x64.
+    * Python 3.4.1/x64 on Windows 8.1/x64.
+    * Python 3.4.2/x86 on Windows 8.1/x64.
+    * Python 3.4.2/x64 on Windows 8.1/x64.
 
 * Improved support for ``decimal`` XSD types.
 
@@ -157,6 +162,35 @@ version 0.7 (development)
   * Many thanks to Eugene Yakubovich for reporting the issue as well as
     providing the initial fix.
 
+* Fixed loading recursive WSDL imports.
+* Fixed loading recursive XSD imports/includes.
+* Fixed an infinite recursion bug encountered when looking for an XSD type in an
+  XSD schema that does not contain it but itself defines a type referencing a
+  recursively defined type from an imported XSD schema.
+
+  * Kudos to Kevin Pors (`krpors` on BitBucket) for detecting, analysing &
+    reporting the issue, plus preparing a working quick-fix.
+
+* Removed never actually used ``suds.mx.appender.DictAppender`` class.
+
+  * All code paths that could potentially lead to this class getting used
+    convert any encountered dictionaries to ``suds.sudsobject.Object`` instances
+    and report an error in case a corresponding XSD type can not be found.
+
+* Now marshalling passed empty object optional params as empty SOAP request XML
+  elements.
+
+  * Before, passing an empty suds object as an optional parameter value was
+    treated the same as not passing that parameter's value or passing it
+    ``None`` - the value would not get marshalled into the constructed SOAP
+    request at all.
+  * Now, user can still not have the value marshalled by passing nothing or
+    ``None``, but passing an empty object will get marshalled as an actual SOAP
+    request XML element.
+  * Kudos to Nicholas Chen (nicholaschen at BitBucket) & Mark Saniscalchi
+    (msaniscalchi at BitBucket) for reporting the issue and preparing the
+    initial fix.
+
 * Made ``suds`` no longer eat up, log & ignore exceptions raised from registered
   user plugins (detected & reported by Ezequiel Ruiz & Bouke Haarsma, patch &
   test case contributed by Bouke Haarsma).
@@ -175,8 +209,8 @@ version 0.7 (development)
     covered by ``dependency_sort()`` was actually or could be easily broken.
   * ``suds.xsd.deplist`` module renamed to ``suds.xsd.depsort``.
 
-* A referencing XSD element's ``form`` value now read correctly from the
-  referenced element.
+* Global XSD elements (i.e. top-level + reference elements) are now correctly
+  always considered qualified and their ``form`` attribute values are ignored.
 
   * Many thanks to Andrew Yager from BitBucket for reporting the issue.
 
@@ -208,7 +242,7 @@ version 0.7 (development)
       related external resources as well as helping brainstorm the whole issue.
 
   * Fixed a bug causing ``DocumentCache`` to never actually cache any documents
-    since one of the last commits made to the original suds project.
+    since one of the last commits made to the original ``suds`` project.
 
     * That commit refactored ``suds.sax.document.Document`` so it is no longer
       derived from ``suds.sax.element.Element`` while the
@@ -257,7 +291,7 @@ version 0.7 (development)
 
 * Fixed ``suds.sax.document.Document`` str conversion broken around the end of
   2011 by some accidental interaction between our Python 3 compatibility fixes
-  and one of the final official suds project commits making
+  and one of the final official ``suds`` project commits making
   ``suds.sax.document.Document`` no longer be derived from
   ``suds.sax.element.Element``.
 
@@ -322,6 +356,9 @@ version 0.7 (development)
   * Reformatted.
   * Converted to a unicode string.
 
+* Marked ``suds.mx.core.Core.node()`` as abstract since this base class variant
+  is never actually used (both ``Encoded`` & ``Literal`` derived classes use a
+  different implmentation).
 * ``suds.binding.Binding`` converted to a new-style class.
 * ``suds.tostr()`` utility function may no longer silently eat internal Python
   exceptions like ``KeyboardInterrupt`` or ``SystemExit``.
@@ -329,8 +366,8 @@ version 0.7 (development)
 * Extra input arguments now reported when invoking web service operations taking
   no input parameters.
 * Using injected requests/replies/error-information with a web service operation
-  taking at least one input parameter no longer causes suds to report an invalid
-  extra argument error.
+  taking at least one input parameter no longer causes ``suds`` to report an
+  invalid extra argument error.
 
 * Internal project development improvements.
 
@@ -390,14 +427,14 @@ version 0.7 (development)
     ``tests`` package.
 
     * The tests may now be run from the source archive, and will always run on
-      the suds version found installed in the used Python environment.
+      the ``suds`` version found installed in the used Python environment.
 
   * Refactored the quick & dirty batch script used to run all the project tests
     in multiple Python environments to remove much code duplication.
   * Automated project testing in several additional Python environment versions.
   * Added more detailed XSD modeling tests.
   * Added tests demonstrating how additional or replacement built-in XSD types
-    can be registered with suds.
+    can be registered with ``suds``.
   * All project tests now using Python 2 & 3 compatible source code and so no
     longer need to be built separately for Python 3.
   * Added new and updated existing ``suds.cache`` module related tests.
@@ -531,8 +568,14 @@ version 0.6 (2014-01-24)
     error-information with a web service operation taking at least one input
     parameter.
   * Security issue CVE-2013-2217 - using fixed default cache location.
-  * Incorrect referencing XSD element's ``form`` attribute value handling - read
-    directly instead of from the references XSD element.
+  * Incorrect referencing XSD element's ``form`` attribute value handling -
+    global XSD elements (i.e. top-level + reference elements) sometimes
+    considered unqualified.
+  * Loading recursive WSDL imports is broken.
+  * Loading recursive XSD imports/includes is broken.
+  * Infinite recursion bug encountered when looking for an XSD type in an XSD
+    schema that does not contain it but itself defines a type referencing a
+    recursively defined type from an imported XSD schema.
 
 version 0.5 (2013-11-25)
 ------------------------
@@ -595,8 +638,14 @@ version 0.5 (2013-11-25)
 * Known defects.
 
   * Security issue CVE-2013-2217 - using fixed default cache location.
-  * Incorrect referencing XSD element's ``form`` attribute value handling - read
-    directly instead of from the references XSD element.
+  * Incorrect referencing XSD element's ``form`` attribute value handling -
+    global XSD elements (i.e. top-level + reference elements) sometimes
+    considered unqualified.
+  * Loading recursive WSDL imports is broken.
+  * Loading recursive XSD imports/includes is broken.
+  * Infinite recursion bug encountered when looking for an XSD type in an XSD
+    schema that does not contain it but itself defines a type referencing a
+    recursively defined type from an imported XSD schema.
 
 version 0.4.1 jurko 5 (2013-11-11)
 ----------------------------------
@@ -709,9 +758,9 @@ version 0.4.1 jurko 5 (2013-11-11)
     using the 'documentStore' option. Not specifying the option uses a shared
     singleton instance. Specifying the option as ``None`` avoids using any
     document store whatsoever.
-  * Suds tests no longer have to modify the global shared ``DocumentStore`` data
-    in order to avoid loading its known data from external files and so may no
-    longer affect each other by leaving behind data in that global shared
+  * ``suds`` tests no longer have to modify the global shared ``DocumentStore``
+    data in order to avoid loading its known data from external files and so may
+    no longer affect each other by leaving behind data in that global shared
     ``DocumentStore``.
   * Documents may now be fetched from a ``DocumentStore`` using a transport
     protocol other than ``suds``. When using the ``suds`` protocol an exception
@@ -748,8 +797,14 @@ version 0.4.1 jurko 5 (2013-11-11)
 * Known defects.
 
   * Security issue CVE-2013-2217 - using fixed default cache location.
-  * Incorrect referencing XSD element's ``form`` attribute value handling - read
-    directly instead of from the references XSD element.
+  * Incorrect referencing XSD element's ``form`` attribute value handling -
+    global XSD elements (i.e. top-level + reference elements) sometimes
+    considered unqualified.
+  * Loading recursive WSDL imports is broken.
+  * Loading recursive XSD imports/includes is broken.
+  * Infinite recursion bug encountered when looking for an XSD type in an XSD
+    schema that does not contain it but itself defines a type referencing a
+    recursively defined type from an imported XSD schema.
 
 version 0.4.1 jurko 4 (2012-04-17)
 ----------------------------------
@@ -787,8 +842,14 @@ version 0.4.1 jurko 4 (2012-04-17)
     case they have been defined by XSD schema elements referencing XSD schema
     elements with a different target namespace.
   * Security issue CVE-2013-2217 - using fixed default cache location.
-  * Incorrect referencing XSD element's ``form`` attribute value handling - read
-    directly instead of from the references XSD element.
+  * Incorrect referencing XSD element's ``form`` attribute value handling -
+    global XSD elements (i.e. top-level + reference elements) sometimes
+    considered unqualified.
+  * Loading recursive WSDL imports is broken.
+  * Loading recursive XSD imports/includes is broken.
+  * Infinite recursion bug encountered when looking for an XSD type in an XSD
+    schema that does not contain it but itself defines a type referencing a
+    recursively defined type from an imported XSD schema.
 
 version 0.4.1 jurko 3 (2011-12-26)
 ----------------------------------
@@ -827,8 +888,14 @@ version 0.4.1 jurko 3 (2011-12-26)
     case they have been defined by XSD schema elements referencing XSD schema
     elements with a different target namespace.
   * Security issue CVE-2013-2217 - using fixed default cache location.
-  * Incorrect referencing XSD element's ``form`` attribute value handling - read
-    directly instead of from the references XSD element.
+  * Incorrect referencing XSD element's ``form`` attribute value handling -
+    global XSD elements (i.e. top-level + reference elements) sometimes
+    considered unqualified.
+  * Loading recursive WSDL imports is broken.
+  * Loading recursive XSD imports/includes is broken.
+  * Infinite recursion bug encountered when looking for an XSD type in an XSD
+    schema that does not contain it but itself defines a type referencing a
+    recursively defined type from an imported XSD schema.
 
 version 0.4.1 jurko 2 (2011-12-24)
 ----------------------------------
@@ -866,8 +933,14 @@ version 0.4.1 jurko 2 (2011-12-24)
     case they have been defined by XSD schema elements referencing XSD schema
     elements with a different target namespace.
   * Security issue CVE-2013-2217 - using fixed default cache location.
-  * Incorrect referencing XSD element's ``form`` attribute value handling - read
-    directly instead of from the references XSD element.
+  * Incorrect referencing XSD element's ``form`` attribute value handling -
+    global XSD elements (i.e. top-level + reference elements) sometimes
+    considered unqualified.
+  * Loading recursive WSDL imports is broken.
+  * Loading recursive XSD imports/includes is broken.
+  * Infinite recursion bug encountered when looking for an XSD type in an XSD
+    schema that does not contain it but itself defines a type referencing a
+    recursively defined type from an imported XSD schema.
 
 version 0.4.1 jurko 1 (2011-12-24)
 ----------------------------------
@@ -949,8 +1022,14 @@ version 0.4.1 jurko 1 (2011-12-24)
     case they have been defined by XSD schema elements referencing XSD schema
     elements with a different target namespace.
   * Security issue CVE-2013-2217 - using fixed default cache location.
-  * Incorrect referencing XSD element's ``form`` attribute value handling - read
-    directly instead of from the references XSD element.
+  * Incorrect referencing XSD element's ``form`` attribute value handling -
+    global XSD elements (i.e. top-level + reference elements) sometimes
+    considered unqualified.
+  * Loading recursive WSDL imports is broken.
+  * Loading recursive XSD imports/includes is broken.
+  * Infinite recursion bug encountered when looking for an XSD type in an XSD
+    schema that does not contain it but itself defines a type referencing a
+    recursively defined type from an imported XSD schema.
 
 
 Original suds library release notes
@@ -961,7 +1040,18 @@ Original suds library release notes
 * <undocumented>
 * Known defects.
 
+  * SOAP request parameter XML elements constructed in incorrect namespaces in
+    case they have been defined by XSD schema elements referencing XSD schema
+    elements with a different target namespace.
   * Security issue CVE-2013-2217 - using fixed default cache location.
+  * Incorrect referencing XSD element's ``form`` attribute value handling -
+    global XSD elements (i.e. top-level + reference elements) sometimes
+    considered unqualified.
+  * Loading recursive WSDL imports is broken.
+  * Loading recursive XSD imports/includes is broken.
+  * Infinite recursion bug encountered when looking for an XSD type in an XSD
+    schema that does not contain it but itself defines a type referencing a
+    recursively defined type from an imported XSD schema.
 
 **version 0.4 (2010-09-08)**
 
@@ -1209,7 +1299,7 @@ Original suds library release notes
 * Fix ENUMs broken during ``xsd`` package overhaul.
 * Fix type as defined in ticket #24.
 * Fix duplicate param names in method signatures as reported in ticket #30.
-* Suds licensed as LGPL.
+* ``suds`` licensed as LGPL.
 * Remove logging setup in ``suds.__init__()`` as suggested by patch in ticket
   #31. Users will now need to configure the logger.
 * Add support for ``Client.Factory.create()`` alt: syntax for fully qualifying
